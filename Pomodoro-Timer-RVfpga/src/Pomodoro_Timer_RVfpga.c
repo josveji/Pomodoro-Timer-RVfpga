@@ -8,6 +8,7 @@
 // 7 segment display registers
 #define SegEn_ADDR      0x80001038
 #define SegDig_ADDR     0x8000103C
+#define GPIO_LEDs 0x80001404 // LED base address
 
 // GPIO registers
 #define GPIO_SWs        0x80001400
@@ -175,8 +176,8 @@ void GPIO_Initialization(void)
 
 void PTC_Initialization(void)
 {
-
-M_PSP_WRITE_REGISTER_32(RPTC_LRC, 0xFFFF);    // Controla la velocidad
+// 50 MHz clock (20 ns period). For 1 second period, RPTC_LRC = 1/20ns = 50'000'000
+M_PSP_WRITE_REGISTER_32(RPTC_LRC, 50000000);
 M_PSP_WRITE_REGISTER_32(RPTC_CNTR, 0x0);
 M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40);
 M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
