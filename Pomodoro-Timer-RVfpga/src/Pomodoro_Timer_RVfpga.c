@@ -4,6 +4,7 @@
 #include "bsp_timer.h"
 #include "bsp_printf.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 // 7 segment display registers
 #define SegEn_ADDR      0x80001038
@@ -36,50 +37,37 @@
 #define Select_INT      0x80001018
 
 // Pomodoro Macros
-#define Min_focus_time 25
-#define Max_focus_time 60 
+#define DEFAULT_WORK_TIME 25 // in minutes
+#define DEFAULT_BREAK_TIME 5 // in minutes
+
+#define MIN_WORK_TIME 25
+#define MAX_WORK_TIME 60 
 #define Min_break_time 5
 #define Max_break_time 15
+
+// Declaring states
+#define STATE_CONFIG 0
+#define STATE_WORK   1
+#define STATE_BREAK  2
 
 #define READ_GPIO(dir) (*(volatile unsigned *)dir)
 #define WRITE_GPIO(dir, value) { (*(volatile unsigned *)dir) = (value); }
 
-// Declaring prototype functions
-void update_display_mmss(int minutes, int seconds);
-void set_demo_mode(bool enable_demo);
-void start_Pomodoro_timer(void);
-void stop_Pomodoro_timer(void);
-
-
 // Global variables
 bool demo_mode = false; // Set true for demo mode (shorter intervals of time)
-
-
-// Focus session: initial time: 25 minutes 
-int focus_minutes = 25;  // 25 minutes
-int focus_seconds =  60; // 60 seconds
-
-// Break session: initial time: 5 minutes
-int break_minutes = 5;   //  5 minutes
-int break_seconds =  60; // 60 seconds
-
-
-void set_demo_mode(bool enable_demo)
-{
-    if(enable_demo == true) {
-        focus_minutes = 2;  // 2 minutes
-        focus_seconds = 60; // 60 seconds
-
-        break_minutes = 1;  // 1 minute
-        break_seconds = 5;  // 5 seconds
-    }
-    return;
-}; 
-
-
-
+volatile int work_minutes = DEFAULT_WORK_TIME;
+volatile int break_minutes = DEFAULT_BREAK_TIME;
+volatile int remaining_seconds = 0;
+volatile int mode_state = STATE_CONFIG;
 
 extern D_PSP_DATA_SECTION D_PSP_ALIGNED(1024) pspInterruptHandler_t G_Ext_Interrupt_Handlers[8];
+
+// Declaring prototype functions
+void update_display_mmss(int minutes, int seconds, int state);
+//void set_demo_mode(bool enable_demo);
+//void start_Pomodoro_timer(void);
+void stop_Pomodoro_timer(void);
+
 
 void GPIO_ISR(void)
 {
@@ -105,22 +93,33 @@ void PTC_ISR(void)  // Interrupcion del timer
   M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40); // Clean interrupt
   M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31); // re-enable timer
 
-  /* Incrementa el contador de los displays 7 segmentos */
-  SegDisplCount++;
+  if (mode_state == STATE_WORK || mode_state == STATE_BREAK){
+    if (remaining_seconds > 0){
+      remaining_seconds--;
+    }
+
+    int mm = remaining_seconds / 60; // Caluculate minutes
+    int ss = remaining_seconds % 60; // Calculate seconds
+
+    update_display_mmss(mm, ss, mode_state);
+
+    if(remaining_seconds == 0){
+      if (mode_state == STATE_WORK){
+        // Switch to break mode
+        mode_state = STATE_BREAK;
+        remaining_seconds = break_minutes * 60;
+        update_display_mmss(break_minutes, 0, mode_state);
+      } else if (mode_state == STATE_BREAK){
+        // Switch to config mode
+        mode_state = STATE_CONFIG;
+        stop_Pomodoro_timer();
+      }
+    }
+  }
   
-
-
   // Clear PTC interrupt
   bspClearExtInterrupt(3);
 }
-
-void update_display_mmss(int minutes, int seconds)
-{
-  M_PSP_WRITE_REGISTER_32(SegDig_ADDR, real_time_timer);      // Shows in display
-}
-
-
-
 
 void DefaultInitialization(void)
 {
@@ -188,13 +187,63 @@ void GPIO_Initialization(void)
 }
 
 
-void PTC_Initialization(void)
-{
-// 50 MHz clock (20 ns period). For 1 second period, RPTC_LRC = 1/20ns = 50'000'000
-M_PSP_WRITE_REGISTER_32(RPTC_LRC, 50000000);
-M_PSP_WRITE_REGISTER_32(RPTC_CNTR, 0x0);
-M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40);
-M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
+void PTC_Initialization(void){
+  // 50 MHz clock (20 ns period). For 1 second period, RPTC_LRC = 1/20ns = 50'000'000
+  M_PSP_WRITE_REGISTER_32(RPTC_LRC, 50000000);
+  M_PSP_WRITE_REGISTER_32(RPTC_CNTR, 0x0);
+  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40);
+  //M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
+}
+
+void start_Pomodoro_timer(void){
+  M_PSP_WRITE_REGISTER_32(RPTC_CNTR, 0x0);
+  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40);
+  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
+}
+
+void stop_Pomodoro_timer(void){
+  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40); // Stop timer
+}
+
+void update_display_mmss(int minutes, int seconds, int state){
+  if (minutes < 0) minutes = 0;
+  if (minutes > 99) minutes = 99;
+  if (seconds < 0) seconds = 0;
+  if (seconds > 59) seconds = 59;
+
+  int state_bits; 
+  switch(state){
+    case STATE_CONFIG:
+      state_bits = 0xC;
+      break;
+    case STATE_WORK:
+      state_bits = 0xF;
+      break;
+    case STATE_BREAK:
+      state_bits = 0xB;
+      break;
+    default:
+      state_bits = 0xC;
+      break;
+  }
+
+  // Separting digits
+  int d_minutes = (minutes / 10) % 10; // tens place  (minutes)
+  int u_minutes = (minutes % 10);      // units place (minutes)
+  int d_seconds = (seconds / 10) % 10; // tens place  (seconds)
+  int u_seconds = (seconds % 10);      // units place (seconds)
+
+  // Putting values together for display (State|MM|SS)
+  uint32_t time_packet = (
+    (state_bits << 16) |
+    (d_minutes << 12) |
+    (u_minutes << 8 ) |   
+    (d_seconds << 4 ) |
+    (u_seconds << 0 )
+  );
+
+
+  M_PSP_WRITE_REGISTER_32(SegDig_ADDR, time_packet);      // Shows in display
 }
 
 
