@@ -35,14 +35,23 @@
 
 #define Select_INT      0x80001018
 
+// Pomodoro Macros
+#define Min_focus_time 25
+#define Max_focus_time 60 
+#define Min_break_time 5
+#define Max_break_time 15
+
 #define READ_GPIO(dir) (*(volatile unsigned *)dir)
 #define WRITE_GPIO(dir, value) { (*(volatile unsigned *)dir) = (value); }
 
+// Declaring prototype functions
+void update_display_mmss(int minutes, int seconds);
+void set_demo_mode(bool enable_demo);
+void start_Pomodoro_timer(void);
+void stop_Pomodoro_timer(void);
 
-int SegDisplCount=0;
 
-// Pomodoro varriables
-// Demo version
+// Global variables
 bool demo_mode = false; // Set true for demo mode (shorter intervals of time)
 
 
@@ -91,21 +100,26 @@ void GPIO_ISR(void)
 
 void PTC_ISR(void)  // Interrupcion del timer
 {
-
-
-// Settea el timer
+  // Setting up the timer 
   M_PSP_WRITE_REGISTER_32(RPTC_CNTR, 0x0);
-  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40);
-  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
+  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x40); // Clean interrupt
+  M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31); // re-enable timer
 
   /* Incrementa el contador de los displays 7 segmentos */
   SegDisplCount++;
-  M_PSP_WRITE_REGISTER_32(SegDig_ADDR, SegDisplCount);      // Escribe en la pantalla
-
   
-  bspClearExtInterrupt(3);
 
+
+  // Clear PTC interrupt
+  bspClearExtInterrupt(3);
 }
+
+void update_display_mmss(int minutes, int seconds)
+{
+  M_PSP_WRITE_REGISTER_32(SegDig_ADDR, real_time_timer);      // Shows in display
+}
+
+
 
 
 void DefaultInitialization(void)
@@ -207,5 +221,17 @@ int main(void)
   M_PSP_SET_CSR(D_PSP_MIE_NUM, D_PSP_MIE_MEIE_MASK);  /* Enable external interrupts in mie CSR */
 
   while (1) {
+    
+    int button_state = READ_GPIO(GPIO_BTN); // Read buttons state
+    bool start_timer = false; // Indicates if timer has started
+    
+    if (button_state & PB_BTNC) {
+      // Center button pressed: Reset the display count
+      // PTC_Initialization(); // Starts counting 
+
+      M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
+    }
+    
+
   }
 }
