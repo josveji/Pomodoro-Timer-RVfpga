@@ -40,10 +40,10 @@
 #define DEFAULT_WORK_TIME 25 // in minutes
 #define DEFAULT_BREAK_TIME 5 // in minutes
 
-#define MIN_WORK_TIME 25
+#define MIN_WORK_TIME 5
 #define MAX_WORK_TIME 60 
-#define Min_break_time 5
-#define Max_break_time 15
+#define MIN_BREAK_TIME 5
+#define MAX_BREAK_TIME 15
 
 // Declaring states
 #define STATE_CONFIG 0
@@ -67,6 +67,7 @@ void update_display_mmss(int minutes, int seconds, int state);
 //void set_demo_mode(bool enable_demo);
 //void start_Pomodoro_timer(void);
 void stop_Pomodoro_timer(void);
+static void delay_cycles(volatile uint32_t cycles);
 
 
 void GPIO_ISR(void)
@@ -252,7 +253,7 @@ int main(void)
   /* INITIALIZE THE INTERRUPT SYSTEM */
   DefaultInitialization();                            /* Default initialization */
   pspExtInterruptsSetThreshold(5);                    /* Set interrupts threshold to 5 */
-  set_demo_mode(demo_mode); // Set demo mode if enabled
+  //set_demo_mode(demo_mode); // Set demo mode if enabled
 
 
   /* INITIALIZE INTERRUPT LINES IRQ3 AND IRQ4 */
@@ -269,18 +270,80 @@ int main(void)
   pspInterruptsEnable();                              /* Enable all interrupts in mstatus CSR */
   M_PSP_SET_CSR(D_PSP_MIE_NUM, D_PSP_MIE_MEIE_MASK);  /* Enable external interrupts in mie CSR */
 
+  update_display_mmss(work_minutes, 0x0, 0x0);
+
+  unsigned int last_buttons = 0;
+
   while (1) {
     
     int button_state = READ_GPIO(GPIO_BTN); // Read buttons state
+
+    unsigned int pressed = (button_state) & ~(last_buttons);
+
     bool start_timer = false; // Indicates if timer has started
     
-    if (button_state & PB_BTNC) {
-      // Center button pressed: Reset the display count
-      // PTC_Initialization(); // Starts counting 
+    if (mode_state == STATE_CONFIG) {
+      /* UP: increase work_minutes +5 */
+      if (pressed & PB_BTNU) {
+        if (work_minutes + 5 <= MAX_WORK_TIME) {
+          work_minutes += 5;
+        }
+        update_display_mmss(work_minutes, 0, mode_state);
+        delay_cycles(500000); /* pequeño antirrebote ~200ms */
+      }
 
-      M_PSP_WRITE_REGISTER_32(RPTC_CTRL, 0x31);
-    }
+      /* DOWN: decrease work_minutes -5 */
+      if (pressed & PB_BTND) {
+        if (work_minutes - 5 >= MIN_WORK_TIME) {
+          work_minutes -= 5;
+        }
+        update_display_mmss(work_minutes, 0, mode_state);
+        delay_cycles(500000);
+      }
+
+      /* RIGHT: increase break_minutes +5 */
+      if (pressed & PB_BTNR) {
+        if (break_minutes + 5 <= MAX_BREAK_TIME) {
+          break_minutes += 5;
+        }
+        update_display_mmss(break_minutes, 0, mode_state); /* muestra temporalmente break en pantalla; puedes cambiar */
+         delay_cycles(500000);
+      }
+
+      /* LEFT: decrease break_minutes -5 */
+      if (pressed & PB_BTNL) {
+        if (break_minutes - 5 >= MIN_BREAK_TIME) {
+          break_minutes -= 5;
+        }
+        update_display_mmss(break_minutes, 0, mode_state);
+        delay_cycles(500000);
+      }
+
+      /* CENTER: iniciar sesión de trabajo */
+      if (pressed & PB_BTNC) {
+        mode_state = STATE_WORK;
+        remaining_seconds = work_minutes * 60; /* cargar tiempo en segundos */
+        update_display_mmss(work_minutes, 0, mode_state);
+        start_Pomodoro_timer();
+        delay_cycles(500000);
+      }
+
+      } else {
+        /* Executing Work/Break mode*/
+      }
+
+      /* Save last button state */
+      last_buttons = button_state;
+
+      /* Wait */
+      delay_cycles(150000); /* 50 ms */
     
 
   }
+}
+
+static void delay_cycles(volatile uint32_t cycles) {
+    while(cycles--) {
+        __asm__("nop");
+    }
 }
