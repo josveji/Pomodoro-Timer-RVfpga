@@ -21,6 +21,7 @@
 #define RGPIO_INTS      0x8000141C
 
 // Buttons
+#define GPIO2_INOUT 0x80001808 // GPIO2 corresponds to buttons
 #define GPIO_BTN 0x80001800 // Button base address
 #define PB_BTNC 0x0001 // BTN Center
 #define PB_BTNU 0x0002 // BTN Up
@@ -251,7 +252,8 @@ void update_display_mmss(int minutes, int seconds, int state){
 int main(void)
 {
   /* INITIALIZE THE INTERRUPT SYSTEM */
-  DefaultInitialization();                            /* Default initialization */
+  DefaultInitialization();          
+  WRITE_GPIO(GPIO2_INOUT, 0x0000); // Botones como entradas                  /* Default initialization */
   pspExtInterruptsSetThreshold(5);                    /* Set interrupts threshold to 5 */
   //set_demo_mode(demo_mode); // Set demo mode if enabled
 
