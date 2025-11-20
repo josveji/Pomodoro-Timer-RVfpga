@@ -29,7 +29,7 @@ Estudiantes:
 // 7 segment display registers
 #define SegEn_ADDR      0x80001038
 #define SegDig_ADDR     0x8000103C
-#define GPIO_LEDs 0x80001404 // LED base address
+#define GPIO_LEDs       0x80001404 // LED base address
 
 
 // Instancing functions
@@ -51,7 +51,7 @@ int main(void)
     WRITE_GPIO(GPIO2_INOUT, 0x0000); // Botones como entradas
     
     WRITE_GPIO(SegEn_ADDR, 0x0); // Habilitar todos los dígitos de la pantalla de 7 segmentos
-    WRITE_GPIO(SegDig_ADDR, 0xF2500); // Inicializar pantalla en 0
+    WRITE_GPIO(SegDig_ADDR, 0x1111); // Inicializar pantalla en 0
     while (1) {
         int valor_inicial = 0b0000000000000001;
         int led_totales = 0;
