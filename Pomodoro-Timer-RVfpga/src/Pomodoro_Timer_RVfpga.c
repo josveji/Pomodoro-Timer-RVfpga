@@ -50,15 +50,15 @@ int main(void)
     WRITE_GPIO(GPIO_INOUT, 0xFFFF);  // LEDs como salidas
     WRITE_GPIO(GPIO2_INOUT, 0x0000); // Botones como entradas
     
-    WRITE_GPIO(SegEn_ADDR, 0x0); // Habilitar todos los dígitos de la pantalla de 7 segmentos
-    WRITE_GPIO(SegDig_ADDR, 0x1111); // Inicializar pantalla en 0
+    WRITE_GPIO(SegEn_ADDR, 0xE0); // Habilitar todos los dígitos de la pantalla de 7 segmentos
+    //WRITE_GPIO(SegDig_ADDR, 0x1111); // Inicializar pantalla en 0
     while (1) {
         int valor_inicial = 0b0000000000000001;
         int led_totales = 0;
         int count_speed = 5000000; // Velocidad normal
         int reiniciar = 0;
 
-        //update_display_mmss(25, 5, 0xF); // Mostrar 00:00 en estado 0
+        update_display_mmss(25, 5, 0xC); // Mostrar 00:00 en estado 0
 
         for (int i = 0; i <= 15; i++) {
             // Leer el estado de los botones
@@ -112,7 +112,7 @@ void update_display_mmss(int minutes, int seconds, int state){
   uint32_t time_packet = create_time_packet(minutes, seconds, state);
 
   // Escribir en los registros de la pantalla de 7 segmentos
-  //WRITE_GPIO(SegEn_ADDR, 0x00FF);        // Habilitar todos los dígitos
+  //WRITE_GPIO(SegEn_ADDR, 0x00FF);       // Habilitar todos los dígitos
   WRITE_GPIO(SegDig_ADDR, time_packet);   // Enviar el paquete de tiempo
 }
 
@@ -132,4 +132,3 @@ uint32_t create_time_packet(int minutes, int seconds, int state){
 
   return time_packet;
 }
-
