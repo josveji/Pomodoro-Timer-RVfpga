@@ -4,16 +4,16 @@ Estudiantes:
 - Gabriel Vega Chavez, C08344
 */ 
 
+#include <stdint.h>
+#include <stdbool.h>
+
+#include <psp_api.h>                        // <-- mover arriba (define pspInterruptHandler_t)
+#include "psp_ext_interrupts_eh1.h"
+#include "bsp_external_interrupts.h"
 #include <bsp_printf.h>
 #include <bsp_mem_map.h>
 #include <bsp_version.h>
 #include "bsp_timer.h"
-#include "bsp_external_interrupts.h"
-#include "psp_ext_interrupts_eh1.h"
-#include <stdint.h>
-#include <psp_api.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 // Memory-mapped I/O addresses
 #define GPIO_SWs    0x80001400
@@ -63,6 +63,12 @@ Estudiantes:
 #define ST_WORK   0xF
 #define ST_BREAK  0xB
 
+// LED combiantions 
+#define LED_CONFIG_WRK 0b1111010000000000
+#define LED_CONFIG_BRK 0b1111011000000000
+#define LED_WORK       0b1110000000000000
+#define LED_BREAK      0b1100000000000000
+
 // Define read and write macros
 #define READ_GPIO(dir) (*(volatile unsigned *)dir)
 #define WRITE_GPIO(dir, value) { (*(volatile unsigned *)dir) = (value); }
@@ -75,6 +81,7 @@ void delay_cyc(volatile unsigned ciclos);
 void stop_Pomodoro_Timer(void);
 void start_Pomodoro_Timer(void);
 void reset_Pomodoro_Timer(void);
+void update_led(int led_combination);
 
 
 // Global Variables
@@ -126,7 +133,7 @@ void PTC_ISR(void){  // Interrupcion del timer
         current_state = ST_CONFIG; // Switch to config mode
         work_minutes = DEFAULT_WORK_MINUTES;   // Set default times
         break_minutes = DEFAULT_BREAK_MINUTES; // Set default times
-        stop_Pomodoro_timer();
+        stop_Pomodoro_Timer();
         update_display_mmss(work_minutes, 0, current_state);
       }
     }
@@ -233,57 +240,92 @@ void reset_Pomodoro_Timer(void){
 
 int main(void)
 {
-    // Startup periphericals
+    // Initializations
+    DefaultInitialization(); 
     WRITE_GPIO(GPIO_INOUT, 0xFFFF);  // LEDs as outputs
     WRITE_GPIO(GPIO2_INOUT, 0x0000); // Buttons as inputs
-    WRITE_GPIO(SegEn_ADDR, 0xE0);    // Enables the least significant 5 digits (0b11100000)
+    WRITE_GPIO(SegEn_ADDR, 0xE0);    // Enables the least significant 5 digits (0b11100000) (7-seg display)
+    pspExtInterruptsSetThreshold(5);   
+
+    /* INITIALIZE INTERRUPT LINES IRQ3 AND IRQ4 */
+    ExternalIntLine_Initialization(4, 6, GPIO_ISR);     /* Initialize line IRQ4 with a priority of 6. Set GPIO_ISR as the Interrupt Service Routine */
+    ExternalIntLine_Initialization(3, 6, PTC_ISR);      /* Initialize line IRQ3 with a priority of 6. Set PTC_ISR as the Interrupt Service Routine */
+    M_PSP_WRITE_REGISTER_32(Select_INT, 0x3);           /* Connect the GPIO interrupt to the IRQ4 interrupt line and the PTC interrupt to the IRQ3 line*/
+
+    /* INITIALIZE THE PERIPHERALS */
+    GPIO_Initialization();                              /* Initialize the GPIO */
+    PTC_Initialization();                               /* Initialize the Timer */
+
+    /* ENABLE INTERRUPTS */
+    pspInterruptsEnable();                              /* Enable all interrupts in mstatus CSR */
+    M_PSP_SET_CSR(D_PSP_MIE_NUM, D_PSP_MIE_MEIE_MASK);  /* Enable external interrupts in mie CSR */
+
+    unsigned int last_buttons = 0; // Variable to store the last button state
+
 
     while (1) {
-        int valor_inicial = 0b0000000000000001;
-        int led_totales = 0;
-        int count_speed = 5000000; // Velocidad normal
-        int reiniciar = 0;
+        
+        int button_state = READ_GPIO(GPIO_BTN); // Reads the current button state
+        unsigned int pressed = (button_state) & ~(last_buttons); // Detects newly pressed buttons
 
-        update_display_mmss(25, 5, 0xC); // Mostrar 00:00 en estado 0
+        if (current_state == ST_CONFIG) {
+            // In configuration state, adjust work and break minutes
+            if (pressed & PB_BTNU) { // UP button increases work time
+                update_display_mmss(work_minutes, 0, current_state);
+                update_led(LED_CONFIG_WRK);
 
-        for (int i = 0; i <= 15; i++) {
-            // Leer el estado de los botones
-            int botones = READ_GPIO(GPIO_BTN);
-            
-            // Verificar botones específicos
-            if (botones & PB_BTND) { // Botón CENTER presionado
-                count_speed = 500000; // Velocidad rápida
-            } else {
-                count_speed = 5000000; // Velocidad normal
+                if (work_minutes < MAX_WORK_MINUTES) {
+                    work_minutes++;
+                    update_display_mmss(work_minutes, 0, current_state);
+                }
+                delay_cyc(500000); // Debounce delay
             }
+            if (pressed & PB_BTND) { // DOWN button decreases work time
+                update_display_mmss(work_minutes, 0, current_state);
+                update_led(LED_CONFIG_WRK);
 
-            // Actualizar LEDs
-            int led_actual_a_encender = valor_inicial << i;
-            led_totales = led_actual_a_encender | led_totales;
-            WRITE_GPIO(GPIO_LEDs, led_totales);
+                if (work_minutes > MIN_WORK_MINUTES) {
+                    work_minutes--;
+                    update_display_mmss(work_minutes, 0, current_state);
+                }
+                delay_cyc(500000); // Debounce delay
+            }
+            if (pressed & PB_BTNL) { // LEFT button increases break time
+                update_display_mmss(break_minutes, 0, current_state);
+                update_led(LED_CONFIG_BRK);
 
-            // Delay con la velocidad actual
-            delay_cyc(count_speed);
+                if (break_minutes < MAX_BREAK_MINUTES) {
+                    break_minutes++;
+                }
+                delay_cyc(500000); // Debounce delay
+            }
+            if (pressed & PB_BTNR) { // RIGHT button decreases break time
+                update_display_mmss(break_minutes, 0, current_state);
+                update_led(LED_CONFIG_BRK);
 
-            // Verificar si se debe reiniciar (después del delay)
-            botones = READ_GPIO(GPIO_BTN); // Leer nuevamente
-            if (botones & PB_BTNU) { // Botón UP para reiniciar
-                reiniciar = 1;
-                break; // Salir del for loop
+                if (break_minutes > MIN_BREAK_MINUTES) {
+                    break_minutes--;
+                }
+                delay_cyc(500000); // Debounce delay
+            }
+            if (pressed & PB_BTNC) { // CENTER button starts the timer
+                current_state = ST_WORK;
+                remaining_seconds = work_minutes * 60;
+                start_Pomodoro_Timer();
+                delay_cyc(500000); // Debounce delay
             }
         }
 
-        // Si se solicitó reinicio, volver al inicio del while
-        if (reiniciar) {
-            WRITE_GPIO(GPIO_LEDs, 0x0000);
-            delay_cyc(1000000);
-            continue; // Volver al inicio del while(1)
+        else if (current_state == ST_WORK) {
+            update_led(LED_WORK);
+        } 
+        
+        else if (current_state == ST_BREAK) {
+            update_led(LED_BREAK);
         }
 
-        // Si llegó aquí, completó el ciclo normal
-        delay_cyc(1000000);
-        WRITE_GPIO(GPIO_LEDs, 0x0000);
-        delay_cyc(1000000);
+        last_buttons = button_state; // Update last button state
+        delay_cyc(150000); /* 50 ms */
     }
 }
 
@@ -292,7 +334,7 @@ int main(void)
 
 // ===================== Pomodoro Functions =====================
 
-void delay_cyc(volatile unsigned ciclos) {
+void delay_cyc(volatile unsigned ciclos){
     while (ciclos--) {
         __asm__("nop");
     }
@@ -328,4 +370,8 @@ uint32_t create_time_packet(int minutes, int seconds, int state){
     );
 
   return time_packet;
+}
+
+void update_led(int led_combination){
+    WRITE_GPIO(GPIO_LEDs, led_combination);
 }
