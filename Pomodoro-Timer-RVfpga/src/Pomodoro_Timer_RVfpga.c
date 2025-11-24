@@ -290,24 +290,29 @@ int main(void)
                 }
                 delay_cyc(500000); // Debounce delay
             }
-            if (pressed & PB_BTNL) { // LEFT button decreases break time
-                update_display_mmss(break_minutes, 0, current_state);
-                update_led(LED_CONFIG_BRK);
-
-                if (break_minutes > MIN_BREAK_MINUTES) {
-                    break_minutes--;
-                }
-                delay_cyc(500000); // Debounce delay
-            }
             if (pressed & PB_BTNR) { // RIGHT button increases break time
                 update_display_mmss(break_minutes, 0, current_state);
                 update_led(LED_CONFIG_BRK);
 
                 if (break_minutes < MAX_BREAK_MINUTES) {
                     break_minutes++;
+                    update_display_mmss(break_minutes, 0, current_state);
                 }
                 delay_cyc(500000); // Debounce delay
             }
+
+
+            if (pressed & PB_BTNL) { // LEFT button decreases break time
+                update_display_mmss(break_minutes, 0, current_state);
+                update_led(LED_CONFIG_BRK);
+
+                if (break_minutes > MIN_BREAK_MINUTES) {
+                    break_minutes--;
+                    update_display_mmss(break_minutes, 0, current_state);
+                }
+                delay_cyc(500000); // Debounce delay
+            }
+            
             if (pressed & PB_BTNC) { // CENTER button starts the timer
                 current_state = ST_WORK;
                 remaining_seconds = work_minutes * 60;
