@@ -245,6 +245,7 @@ int main(void)
     WRITE_GPIO(GPIO_INOUT, 0xFFFF);  // LEDs as outputs
     WRITE_GPIO(GPIO2_INOUT, 0x0000); // Buttons as inputs
     WRITE_GPIO(SegEn_ADDR, 0xE0);    // Enables the least significant 5 digits (0b11100000) (7-seg display)
+
     pspExtInterruptsSetThreshold(5);   
 
     /* INITIALIZE INTERRUPT LINES IRQ3 AND IRQ4 */
@@ -255,6 +256,10 @@ int main(void)
     /* INITIALIZE THE PERIPHERALS */
     GPIO_Initialization();                              /* Initialize the GPIO */
     PTC_Initialization();                               /* Initialize the Timer */
+
+    // Default display and LED state
+    update_display_mmss(work_minutes, 0, ST_CONFIG); // 25:00 show default
+    update_led(LED_CONFIG_WRK);
 
     /* ENABLE INTERRUPTS */
     pspInterruptsEnable();                              /* Enable all interrupts in mstatus CSR */
