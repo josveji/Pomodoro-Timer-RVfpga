@@ -290,21 +290,21 @@ int main(void)
                 }
                 delay_cyc(500000); // Debounce delay
             }
-            if (pressed & PB_BTNL) { // LEFT button increases break time
-                update_display_mmss(break_minutes, 0, current_state);
-                update_led(LED_CONFIG_BRK);
-
-                if (break_minutes < MAX_BREAK_MINUTES) {
-                    break_minutes++;
-                }
-                delay_cyc(500000); // Debounce delay
-            }
-            if (pressed & PB_BTNR) { // RIGHT button decreases break time
+            if (pressed & PB_BTNL) { // LEFT button decreases break time
                 update_display_mmss(break_minutes, 0, current_state);
                 update_led(LED_CONFIG_BRK);
 
                 if (break_minutes > MIN_BREAK_MINUTES) {
                     break_minutes--;
+                }
+                delay_cyc(500000); // Debounce delay
+            }
+            if (pressed & PB_BTNR) { // RIGHT button increases break time
+                update_display_mmss(break_minutes, 0, current_state);
+                update_led(LED_CONFIG_BRK);
+
+                if (break_minutes < MAX_BREAK_MINUTES) {
+                    break_minutes++;
                 }
                 delay_cyc(500000); // Debounce delay
             }
