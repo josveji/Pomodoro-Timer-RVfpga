@@ -38,7 +38,7 @@ Estudiantes:
 // Pomodoro Macros (time in minutes)
 #define DEFAULT_WORK_MINUTES 25
 #define MAX_WORK_MINUTES     60
-#define MIN_WORK_MINUTES     5
+#define MIN_WORK_MINUTES     1
 
 #define DEFAULT_BREAK_MINUTES 5
 #define MAX_BREAK_MINUTES     20
