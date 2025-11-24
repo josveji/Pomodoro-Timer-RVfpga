@@ -82,6 +82,7 @@ void stop_Pomodoro_Timer(void);
 void start_Pomodoro_Timer(void);
 void reset_Pomodoro_Timer(void);
 void update_led(int led_combination);
+void blink_leds(int times, int delay_cycles);
 
 
 // Global Variables
@@ -130,11 +131,13 @@ void PTC_ISR(void){  // Interrupcion del timer
         update_display_mmss(break_minutes, 0, current_state);
       } 
       else if (current_state == ST_BREAK){
+        blink_leds(10, 1000000); // Blink LEDs to signal end of break
         current_state = ST_CONFIG; // Switch to config mode
         work_minutes = DEFAULT_WORK_MINUTES;   // Set default times
         break_minutes = DEFAULT_BREAK_MINUTES; // Set default times
         stop_Pomodoro_Timer();
         update_display_mmss(work_minutes, 0, current_state);
+        update_led(LED_CONFIG_WRK);
       }
     }
   }
@@ -384,4 +387,13 @@ uint32_t create_time_packet(int minutes, int seconds, int state){
 
 void update_led(int led_combination){
     WRITE_GPIO(GPIO_LEDs, led_combination);
+}
+
+void blink_leds(int times, int delay_cycles){
+    for (int i = 0; i < times; i++){
+        WRITE_GPIO(GPIO_LEDs, 0x0000); // Turn off LEDs
+        delay_cyc(delay_cycles);
+        WRITE_GPIO(GPIO_LEDs, 0xFFFF); // Turn on LEDs
+        delay_cyc(delay_cycles);
+    }
 }
