@@ -154,10 +154,7 @@ void PTC_ISR(void){  // Interrupcion del timer
         alarm_signal();
         //------------------------------------
 
-
-
         blink_leds(10, 1000000); // Blink LEDs to signal end of break
-
 
         current_state = ST_CONFIG; // Switch to config mode
         work_minutes = DEFAULT_WORK_MINUTES;   // Set default times
@@ -430,13 +427,13 @@ void alarm_signal(void){
     // Function to signal the end of a Pomodoro session
     // This could involve blinking LEDs, playing a sound, etc.
 
-
         // CONFIGURACIÓN FIJA
         WRITE32(AUDIO_RELOAD, 2000000000000000000000);   // periodo estable
     
         uint32_t sample = 0;
     
         for (int i = 0; i <50000; i++) {
+          //        0x800012C0
             WRITE32(AUDIO_DATA, sample);
         
             sample += 0x9800;        // sube duty
